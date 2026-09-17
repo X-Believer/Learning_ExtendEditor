@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "SuperManager",
+	"Description": "Learning ExtendEditor",
+	"Category": "Other",
+	"CreatedBy": "Shuyang Xing",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "SuperManager",
+			"Type": "Editor",
+			"LoadingPhase": "PreDefault"
+		}
+	]
+}
