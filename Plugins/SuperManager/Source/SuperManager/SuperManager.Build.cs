@@ -11,6 +11,7 @@ public class SuperManager : ModuleRules
 		PublicIncludePaths.AddRange(
 			new string[] {
 				// ... add public include paths required here ...
+				System.IO.Path.GetFullPath(Target.RelativeEnginePath) + "/Source/Editor/Blutility/Private",
 			}
 			);
 				
@@ -25,7 +26,7 @@ public class SuperManager : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core",
+				"Core", "Blutility", "Slate", "UnrealEd", "AssetTools"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -37,7 +38,7 @@ public class SuperManager : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Slate",
-				"SlateCore",
+				"SlateCore", "EditorScriptingUtilities",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
