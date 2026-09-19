@@ -15,7 +15,7 @@ void UQuickAssetAction::DuplicateAsset(int32 NumOfDuplicates)
 {
 	if (NumOfDuplicates <= 0)
 	{
-		ShowMessageDialog(EAppMsgType::Ok, TEXT("Number of duplicates must be greater than 0."), true);
+		DebugHelper::ShowMessageDialog(EAppMsgType::Ok, TEXT("Number of duplicates must be greater than 0."), true);
 		return;
 	}
 	
@@ -36,11 +36,11 @@ void UQuickAssetAction::DuplicateAsset(int32 NumOfDuplicates)
 			if (UEditorAssetLibrary::DuplicateAsset(AssetPath, NewAssetPath))
 			{
 				UEditorAssetLibrary::SaveAsset(NewAssetPath, false);
-				ShowNotifyInfo(FString::Printf(TEXT("Duplicated asset: %s to %s"), *AssetPath, *NewAssetPath));
+				DebugHelper::ShowNotifyInfo(FString::Printf(TEXT("Duplicated asset: %s to %s"), *AssetPath, *NewAssetPath));
 			}
 			else
 			{
-				Print(FString::Printf(TEXT("Failed to duplicate asset: %s"), *AssetPath), FColor::Red);
+				DebugHelper::Print(FString::Printf(TEXT("Failed to duplicate asset: %s"), *AssetPath), FColor::Red);
 			}
 		}
 	}
@@ -58,14 +58,14 @@ void UQuickAssetAction::AddPrefixes()
 		FString* PrefixFound = PrefixMap.Find(Object->GetClass());
 		if (!PrefixFound || PrefixFound->IsEmpty())
 		{
-			Print(FString::Printf(TEXT("No prefix defined for class: %s"), *Object->GetClass()->GetName()), FColor::Yellow);
+			DebugHelper::Print(FString::Printf(TEXT("No prefix defined for class: %s"), *Object->GetClass()->GetName()), FColor::Yellow);
 			continue;
 		}
 		
 		FString OldName = Object->GetName();
 		if (OldName.StartsWith(*PrefixFound))
 		{
-			Print(FString::Printf(TEXT("Asset %s already has the prefix %s"), *OldName, **PrefixFound), FColor::Yellow);
+			DebugHelper::Print(FString::Printf(TEXT("Asset %s already has the prefix %s"), *OldName, **PrefixFound), FColor::Yellow);
 			continue;
 		}
 		if (Object->IsA<UMaterialInstanceConstant>())
@@ -78,8 +78,8 @@ void UQuickAssetAction::AddPrefixes()
 		UEditorUtilityLibrary::RenameAsset(Object, NewName);
 		Counter++;
 	}
-	
-	ShowNotifyInfo(FString::Printf(TEXT("Added prefixes to %d assets."), Counter));
+
+	DebugHelper::ShowNotifyInfo(FString::Printf(TEXT("Added prefixes to %d assets."), Counter));
 }
 
 void UQuickAssetAction::RemoveUnusedAssets()
@@ -92,7 +92,7 @@ void UQuickAssetAction::RemoveUnusedAssets()
 	for (const FAssetData& AssetData : SelectedDataAssets)
 	{
 		TArray<FString> Referencers =
-		UEditorAssetLibrary::FindPackageReferencersForAsset(AssetData.ObjectPath.ToString());
+		UEditorAssetLibrary::FindPackageReferencersForAsset(AssetData.GetObjectPathString());
 		
 		if (Referencers.Num() == 0)
 		{
@@ -102,15 +102,15 @@ void UQuickAssetAction::RemoveUnusedAssets()
 	
 	if (UnusedAssets.Num() == 0)
 	{
-		ShowMessageDialog(EAppMsgType::Ok, TEXT("No unused assets found."), false);
+		DebugHelper::ShowMessageDialog(EAppMsgType::Ok, TEXT("No unused assets found."), false);
 		return;
 	}
 	
 	int32 NumDeleted = ObjectTools::DeleteAssets(UnusedAssets);
 	
 	if (NumDeleted == 0) return;;
-	
-	ShowNotifyInfo(FString::Printf(TEXT("Deleted %d unused assets."), NumDeleted));
+
+	DebugHelper::ShowNotifyInfo(FString::Printf(TEXT("Deleted %d unused assets."), NumDeleted));
 }
 
 void UQuickAssetAction::FixUpRedirectors()
@@ -121,7 +121,7 @@ void UQuickAssetAction::FixUpRedirectors()
 	FARFilter Filter;
 	Filter.bRecursivePaths = true;
 	Filter.PackagePaths.Emplace(FName("/Game"));
-	Filter.ClassNames.Emplace(FName("ObjectRedirector"));
+	Filter.ClassPaths.Add(UObjectRedirector::StaticClass()->GetClassPathName());
 	
 	TArray<FAssetData> OutRedirectors;
 	
