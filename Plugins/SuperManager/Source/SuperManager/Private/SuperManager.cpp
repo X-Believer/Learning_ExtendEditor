@@ -9,12 +9,14 @@
 #include "ObjectTools.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "HLSLTree/HLSLTreeTypes.h"
+#include "SlateWidgets/AdvanceDeletionWidget.h"
 
 #define LOCTEXT_NAMESPACE "FSuperManagerModule"
 
 void FSuperManagerModule::StartupModule()
 {
 	InitCBMenuExtension();
+	RegisterCustomEditorTab();
 }
 
 void FSuperManagerModule::ShutdownModule()
@@ -66,6 +68,13 @@ void FSuperManagerModule::AddCBMenuEntry(FMenuBuilder& MenuBuilder)
 		LOCTEXT("DeleteEmptyFolders_Tooltip", "Delete all empty folders under the selected folder"),
 		FSlateIcon(),
 		FUIAction(FExecuteAction::CreateRaw(this, &FSuperManagerModule::OnDeleteEmptyFoldersClicked))
+	);
+	
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("AdvancedDeletion", "Advanced Deletion"),
+		LOCTEXT("AdvancedDeletion_Tooltip", "Perform advanced deletion operations"),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateRaw(this, &FSuperManagerModule::OnAdvancedDeletionClicked))
 	);
 }
 
@@ -166,6 +175,12 @@ void FSuperManagerModule::OnDeleteEmptyFoldersClicked()
 
 }
 
+void FSuperManagerModule::OnAdvancedDeletionClicked()
+{
+	FixUpRedirectors();
+	FGlobalTabmanager::Get()->TryInvokeTab(FName("AdvanceDeletion"));
+}
+
 void FSuperManagerModule::FixUpRedirectors()
 {
 	TArray<UObjectRedirector*> RedirectorsToFix;
@@ -192,6 +207,122 @@ void FSuperManagerModule::FixUpRedirectors()
 }
 
 #pragma endregion
+
+#pragma region CustomEditorTab
+
+void FSuperManagerModule::RegisterCustomEditorTab()
+{
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner("AdvanceDeletion", FOnSpawnTab::CreateRaw(this, &FSuperManagerModule::OnSpawnAdvanceDeletionTab))
+		.SetDisplayName(LOCTEXT("AdvanceDeletionTabTitle", "Advance Deletion"));
+}
+
+TSharedRef<SDockTab> FSuperManagerModule::OnSpawnAdvanceDeletionTab(const FSpawnTabArgs& SpawnTabArgs)
+{
+	return SNew(SDockTab)
+		.TabRole(ETabRole::NomadTab)
+		[
+			SNew(SAdvanceDeletionTab)
+			.AssetDataToStore(GetAllAssetDataUnderSelectedFolder())
+			.CurrentSelectedFolder(FolderPathsSelected.Num() > 0 ? FolderPathsSelected[0] : FString())
+		];
+}
+
+TArray<TSharedPtr<FAssetData>> FSuperManagerModule::GetAllAssetDataUnderSelectedFolder()
+{
+	TArray<TSharedPtr<FAssetData>> AvailableAssetData;
+	
+	TArray<FString> AssetsPathNames = UEditorAssetLibrary::ListAssets(FolderPathsSelected[0]);
+	
+	for (FString Path : AssetsPathNames)
+	{
+		if (Path.Contains(TEXT("Developers")) || Path.Contains(TEXT("Collections")) || Path.Contains(TEXT("Plugins")) || Path.Contains(TEXT("Engine")) || Path.Contains(TEXT("__ExternalActors__")) || Path.Contains(TEXT("__ExternalObjects__")))
+		{
+			continue;
+		}
+		
+		if (!UEditorAssetLibrary::DoesAssetExist(Path)) continue;
+		const FAssetData AssetData = UEditorAssetLibrary::FindAssetData(Path);
+		AvailableAssetData.Add(MakeShared<FAssetData>(AssetData));
+	}
+	return AvailableAssetData;
+}
+
+
+#pragma endregion
+
+#pragma region ProcessDataForAdvanceDeletion
+
+bool FSuperManagerModule::DeleteSingleAssetForAssetList(const FAssetData& AssetDataToDelete)
+{
+	TArray<FAssetData> AssetsToDelete;
+	AssetsToDelete.Add(AssetDataToDelete);
+	
+	if (ObjectTools::DeleteAssets(AssetsToDelete) > 0)
+	{
+		return true;
+	}
+	return false;
+}
+
+bool FSuperManagerModule::DeleteMultipleAssetsForAssetList(const TArray<FAssetData>& AssetsToDelete)
+{
+	if (ObjectTools::DeleteAssets(AssetsToDelete) > 0)
+	{
+		return true;
+	}
+	return false;
+}
+
+void FSuperManagerModule::ListUnusedAssetsForAssetList(const TArray<TSharedPtr<FAssetData>>& AssetsToFilter, TArray<TSharedPtr<FAssetData>>& OutUnusedAssets)
+{
+	OutUnusedAssets.Empty();
+	
+	for (const TSharedPtr<FAssetData>& Asset : AssetsToFilter)
+	{
+		TArray<FString> Referencers = UEditorAssetLibrary::FindPackageReferencersForAsset(Asset->GetObjectPathString());
+		if (Referencers.Num() == 0)
+		{
+			OutUnusedAssets.Add(Asset);
+		}
+	}
+}
+
+void FSuperManagerModule::ListSameNameAssetsForAssetList(const TArray<TSharedPtr<FAssetData>>& AssetsToFilter, TArray<TSharedPtr<FAssetData>>& OutSameNameAssets)
+{
+	OutSameNameAssets.Empty();
+	
+	TMultiMap<FString, TSharedPtr<FAssetData>> AssetsInfo;
+	
+	for (const TSharedPtr<FAssetData>& Asset : AssetsToFilter)
+	{
+		AssetsInfo.Emplace(Asset->AssetName.ToString(), Asset);
+	}
+	
+	for (const TSharedPtr<FAssetData>& Asset : AssetsToFilter)
+	{
+		TArray<TSharedPtr<FAssetData>> SameNameAssets;
+		AssetsInfo.MultiFind(Asset->AssetName.ToString(), SameNameAssets);
+		
+		if (SameNameAssets.Num() <= 1) continue;
+		
+		for (const TSharedPtr<FAssetData>& SameNameAsset : SameNameAssets)
+		{
+			if (SameNameAsset.IsValid())
+			{
+				OutSameNameAssets.AddUnique(SameNameAsset);
+			}
+		}
+	}
+}
+
+void FSuperManagerModule::SyncCBToAssetList(const FString& AssetPath)
+{
+	TArray<FString> AssetPathsToSync;
+	AssetPathsToSync.Add(AssetPath);
+	UEditorAssetLibrary::SyncBrowserToObjects(AssetPathsToSync);
+}
+
+#pragma endregion 
 
 #undef LOCTEXT_NAMESPACE
 	
