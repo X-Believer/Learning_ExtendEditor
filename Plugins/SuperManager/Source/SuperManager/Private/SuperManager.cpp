@@ -37,7 +37,7 @@ void FSuperManagerModule::StartupModule()
 
 void FSuperManagerModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
+	// This function may be called during shutdown to clean up your module.
 	// we call this function before unloading the module.
 	FCoreDelegates::OnPostEngineInit.Remove(
 		PostEngineInitHandle
