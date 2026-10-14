@@ -10,6 +10,7 @@
 #include "ObjectTools.h"
 #include "Selection.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "CustomOutlinerColumn/OutlinerSelectionColumn.h"
 #include "CustomStyle/SuperManagerStyle.h"
 #include "CustomUICommand/SuperManagerUICommands.h"
 #include "HLSLTree/HLSLTreeTypes.h"
@@ -31,6 +32,7 @@ void FSuperManagerModule::StartupModule()
 			this,
 			&FSuperManagerModule::InitCustomSelectionEvent
 		);
+	// InitSceneOutlinerColumnExtension();
 }
 
 void FSuperManagerModule::ShutdownModule()
@@ -519,6 +521,28 @@ void FSuperManagerModule::OnUnlockSelectionHotKeyPressed()
 	OnUnlockActorSelectionClicked();
 	DebugHelper::Print(TEXT("Hotkey pressed: Unlock Actor Selection"), FColor::Green);
 }
+
+#pragma endregion 
+
+#pragma region SceneOutlinerColumnExtension
+
+// void FSuperManagerModule::InitSceneOutlinerColumnExtension()
+// {
+// 	FSceneOutlinerModule SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
+// 	
+// 	FSceneOutlinerColumnInfo SelectedColumnInfo(
+// 		ESceneOutlinerColumnVisibility::Visible,
+// 		1,
+// 		FCreateSceneOutlinerColumn::CreateRaw(this, &FSuperManagerModule::OnCreateSelectionLockColumn)
+// 	);
+// 	
+// 	SceneOutlinerModule.RegisterDefaultColumnType<FOutLinerSelectionLockColumn>(SelectedColumnInfo);
+// }
+//
+// TSharedRef<ISceneOutlinerColumn> FSuperManagerModule::OnCreateSelectionLockColumn(ISceneOutliner& SceneOutliner)
+// {
+// 	return MakeShareable(new FOutLinerSelectionLockColumn(SceneOutliner));
+// }
 
 #pragma endregion 
 

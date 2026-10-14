@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
+class ISceneOutliner;
+class ISceneOutlinerColumn;
 class UEditorActorSubsystem;
 
 class FSuperManagerModule : public IModuleInterface
@@ -79,6 +81,13 @@ private:
 	
 #pragma endregion 
 	
+#pragma region SceneOutlinerColumnExtension
+	
+	void InitSceneOutlinerColumnExtension();
+	
+	TSharedRef<ISceneOutlinerColumn> OnCreateSelectionLockColumn(ISceneOutliner& SceneOutliner);
+	
+#pragma endregion 
 public:
 #pragma region ProcessDataForAdvanceDeletion
 

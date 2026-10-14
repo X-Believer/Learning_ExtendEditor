@@ -10,6 +10,7 @@ public:
 	static void InitializeIcons();
 	static void Shutdown();
 	static FName GetStyleSetName() { return StyleSetName; }
+	static TSharedRef<FSlateStyleSet> GetStyleSet() { return CreatedStyleSet.ToSharedRef(); }
 	
 private:
 	static FName StyleSetName;
