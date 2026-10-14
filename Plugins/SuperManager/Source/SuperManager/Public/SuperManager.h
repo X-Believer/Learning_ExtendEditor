@@ -69,6 +69,16 @@ private:
 	
 #pragma endregion 
 	
+#pragma region CustomEditorUICommand
+	
+	TSharedPtr<FUICommandList> CustomUICommands;
+	
+	void InitCustomUICommands();
+	void OnSelectionHotKeyPressed();
+	void OnUnlockSelectionHotKeyPressed();
+	
+#pragma endregion 
+	
 public:
 #pragma region ProcessDataForAdvanceDeletion
 

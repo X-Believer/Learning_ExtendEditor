@@ -11,6 +11,7 @@
 #include "Selection.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "CustomStyle/SuperManagerStyle.h"
+#include "CustomUICommand/SuperManagerUICommands.h"
 #include "HLSLTree/HLSLTreeTypes.h"
 #include "SlateWidgets/AdvanceDeletionWidget.h"
 #include "Subsystems/EditorActorSubsystem.h"
@@ -22,6 +23,8 @@ void FSuperManagerModule::StartupModule()
 	FSuperManagerStyle::InitializeIcons();
 	InitCBMenuExtension();
 	RegisterCustomEditorTab();
+	FSuperManagerUICommands::Register();
+	InitCustomUICommands();
 	InitLevelEditorMenuExtension();
 	PostEngineInitHandle =
 		FCoreDelegates::OnPostEngineInit.AddRaw(
@@ -39,6 +42,8 @@ void FSuperManagerModule::ShutdownModule()
 	);
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FName("AdvanceDeletion"));
 	FSuperManagerStyle::Shutdown();
+	
+	FSuperManagerUICommands::Unregister();
 }
 
 #pragma region ContentBrowserMenuExtension
@@ -274,6 +279,9 @@ void FSuperManagerModule::InitLevelEditorMenuExtension()
 {
 	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 	
+	TSharedRef<FUICommandList> ExistCommandList = LevelEditorModule.GetGlobalLevelEditorActions();
+	ExistCommandList->Append(CustomUICommands.ToSharedRef());
+	
 	TArray<FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors>& LevelViewportMenuExtenders = LevelEditorModule.GetAllLevelViewportContextMenuExtenders();
 	LevelViewportMenuExtenders.Add(FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors::CreateRaw(this, &FSuperManagerModule::CustomLevelEditorMenuExtender));
 }
@@ -480,6 +488,41 @@ bool FSuperManagerModule::GetEditorActorSubsystem()
 	}
 	return true;
 }
+
+#pragma endregion 
+
+#pragma region CustomEditorUICommand
+
+void FSuperManagerModule::InitCustomUICommands()
+{
+	CustomUICommands = MakeShareable(new FUICommandList());
+	
+	CustomUICommands->MapAction(
+		FSuperManagerUICommands::Get().LockActorSelection,
+		FExecuteAction::CreateRaw(this, &FSuperManagerModule::OnSelectionHotKeyPressed)
+	);
+	
+	CustomUICommands->MapAction(
+		FSuperManagerUICommands::Get().UnlockActorSelection,
+		FExecuteAction::CreateRaw(this, &FSuperManagerModule::OnUnlockSelectionHotKeyPressed)
+	);
+}
+
+void FSuperManagerModule::OnSelectionHotKeyPressed()
+{
+	OnLockActorSelectionClicked();
+	DebugHelper::Print(TEXT("Hotkey pressed: Lock Actor Selection"), FColor::Green);
+}
+
+void FSuperManagerModule::OnUnlockSelectionHotKeyPressed()
+{
+	OnUnlockActorSelectionClicked();
+	DebugHelper::Print(TEXT("Hotkey pressed: Unlock Actor Selection"), FColor::Green);
+}
+
+#pragma endregion 
+
+#pragma region ProcessDataForAdvanceDeletion
 
 bool FSuperManagerModule::DeleteSingleAssetForAssetList(const FAssetData& AssetDataToDelete)
 {
