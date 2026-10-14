@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
+class UEditorActorSubsystem;
+
 class FSuperManagerModule : public IModuleInterface
 {
 public:
@@ -37,6 +39,35 @@ private:
 	TArray<TSharedPtr<FAssetData>> GetAllAssetDataUnderSelectedFolder();
 	
 #pragma endregion
+	
+#pragma region LevelEditorMenuExtension
+	
+	void InitLevelEditorMenuExtension();
+	
+	TSharedRef<FExtender> CustomLevelEditorMenuExtender(const TSharedRef<FUICommandList> CommandList, const TArray<AActor*> SelectedActors);
+	
+	void AddLevelEditorMenuEntry(FMenuBuilder& MenuBuilder);
+	
+	void OnLockActorSelectionClicked();
+	void OnUnlockActorSelectionClicked();
+	
+	FDelegateHandle PostEngineInitHandle;
+
+#pragma endregion
+	
+#pragma region SelectionLock
+	
+	void InitCustomSelectionEvent();
+	void OnActorSelectionChanged(UObject* Object);
+	void LockActorSelection(AActor* ActorToLock);
+	void UnlockActorSelection(AActor* ActorToUnlock);
+	bool IsActorSelectionLocked(AActor* ActorToCheck);
+	
+	TWeakObjectPtr<UEditorActorSubsystem> EditorActorSubsystem;
+	
+	bool GetEditorActorSubsystem();
+	
+#pragma endregion 
 	
 public:
 #pragma region ProcessDataForAdvanceDeletion

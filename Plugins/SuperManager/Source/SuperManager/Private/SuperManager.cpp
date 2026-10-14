@@ -6,11 +6,14 @@
 #include "ContentBrowserModule.h"
 #include "DebugHeader.h"
 #include "EditorAssetLibrary.h"
+#include "LevelEditor.h"
 #include "ObjectTools.h"
+#include "Selection.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "CustomStyle/SuperManagerStyle.h"
 #include "HLSLTree/HLSLTreeTypes.h"
 #include "SlateWidgets/AdvanceDeletionWidget.h"
+#include "Subsystems/EditorActorSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "FSuperManagerModule"
 
@@ -19,12 +22,21 @@ void FSuperManagerModule::StartupModule()
 	FSuperManagerStyle::InitializeIcons();
 	InitCBMenuExtension();
 	RegisterCustomEditorTab();
+	InitLevelEditorMenuExtension();
+	PostEngineInitHandle =
+		FCoreDelegates::OnPostEngineInit.AddRaw(
+			this,
+			&FSuperManagerModule::InitCustomSelectionEvent
+		);
 }
 
 void FSuperManagerModule::ShutdownModule()
 {
 	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
 	// we call this function before unloading the module.
+	FCoreDelegates::OnPostEngineInit.Remove(
+		PostEngineInitHandle
+	);
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FName("AdvanceDeletion"));
 	FSuperManagerStyle::Shutdown();
 }
@@ -254,10 +266,220 @@ TArray<TSharedPtr<FAssetData>> FSuperManagerModule::GetAllAssetDataUnderSelected
 	return AvailableAssetData;
 }
 
+#pragma endregion
+
+#pragma region LevelEditorMenuExtension
+
+void FSuperManagerModule::InitLevelEditorMenuExtension()
+{
+	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	
+	TArray<FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors>& LevelViewportMenuExtenders = LevelEditorModule.GetAllLevelViewportContextMenuExtenders();
+	LevelViewportMenuExtenders.Add(FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors::CreateRaw(this, &FSuperManagerModule::CustomLevelEditorMenuExtender));
+}
+
+TSharedRef<FExtender> FSuperManagerModule::CustomLevelEditorMenuExtender(const TSharedRef<FUICommandList> CommandList, const TArray<AActor*> SelectedActors)
+{
+	TSharedRef<FExtender> MenuExtender = MakeShareable(new FExtender());
+	if (SelectedActors.Num() > 0)
+	{
+		MenuExtender->AddMenuExtension(
+			"ActorOptions",
+			EExtensionHook::Before,
+			CommandList,
+			FMenuExtensionDelegate::CreateRaw(this, &FSuperManagerModule::AddLevelEditorMenuEntry)
+		);
+	}
+	
+	return MenuExtender;
+}
+
+void FSuperManagerModule::AddLevelEditorMenuEntry(FMenuBuilder& MenuBuilder)
+{
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("LockActorSelection", "Lock Actor Selection"),
+		LOCTEXT("LockActorSelection_Tooltip", "Lock the selection of the selected actors"),
+		FSlateIcon(),
+		FExecuteAction::CreateRaw(this, &FSuperManagerModule::OnLockActorSelectionClicked)
+	);
+	
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("UnlockActorSelection", "Unlock Actor Selection"),
+		LOCTEXT("UnlockActorSelection_Tooltip", "Unlock the selection of the selected actors"),
+		FSlateIcon(),
+		FExecuteAction::CreateRaw(this, &FSuperManagerModule::OnUnlockActorSelectionClicked)
+	);
+}
+
+void FSuperManagerModule::OnLockActorSelectionClicked()
+{
+	if (!GetEditorActorSubsystem()) return;
+	
+	TArray<AActor*> SelectedActors = EditorActorSubsystem->GetSelectedLevelActors();
+	if (SelectedActors.Num() == 0)
+	{
+		DebugHelper::ShowMessageDialog(EAppMsgType::Ok, TEXT("No actors selected."), true);
+		return;
+	}
+	
+	for (AActor* Actor : SelectedActors)
+	{
+		if (!Actor) continue;
+		LockActorSelection(Actor);
+		EditorActorSubsystem->SetActorSelectionState(Actor, /*bSelected=*/false);
+	}
+}
+
+void FSuperManagerModule::OnUnlockActorSelectionClicked()
+{
+	if (!GetEditorActorSubsystem()) return;
+	
+	TArray<AActor*> AllActors = EditorActorSubsystem->GetAllLevelActors();
+	TArray<AActor*> LockedActors;
+	
+	for (AActor* Actor : AllActors)
+	{
+		if (!Actor) continue;
+		if (IsActorSelectionLocked(Actor))
+		{
+			LockedActors.Add(Actor);
+		}
+	}
+	
+	if (LockedActors.Num() == 0)
+	{
+		DebugHelper::ShowMessageDialog(EAppMsgType::Ok, TEXT("No locked actors found."), true);
+		return;
+	}
+	
+	for (AActor* Actor : LockedActors)
+	{
+		if (!Actor) continue;
+		UnlockActorSelection(Actor);
+	}
+}
+
+#pragma endregion 
+
+#pragma region SelectionLock
+
+void FSuperManagerModule::InitCustomSelectionEvent()
+{
+	FCoreDelegates::OnPostEngineInit.Remove(
+		PostEngineInitHandle
+	);
+
+	if (!GEditor)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("SuperManager: GEditor is null.")
+		);
+		return;
+	}
+
+	USelection* UserSelection = GEditor->GetSelectedActors();
+
+	if (!IsValid(UserSelection))
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("SuperManager: SelectedActors is invalid.")
+		);
+		return;
+	}
+
+	UserSelection->SelectObjectEvent.RemoveAll(this);
+
+	UserSelection->SelectObjectEvent.AddRaw(
+		this,
+		&FSuperManagerModule::OnActorSelectionChanged
+	);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("SuperManager: Actor selection event registered.")
+	);
+}
+
+void FSuperManagerModule::OnActorSelectionChanged(UObject* Object)
+{
+	if (!GetEditorActorSubsystem()) return;
+	
+	if (AActor* Actor = Cast<AActor>(Object))
+	{
+		if (IsActorSelectionLocked(Actor))
+		{
+			EditorActorSubsystem->SetActorSelectionState(Actor, /*bSelected=*/false);
+		}
+	}
+}
+
+void FSuperManagerModule::LockActorSelection(AActor* ActorToLock)
+{
+	if (!IsValid(ActorToLock))
+	{
+		DebugHelper::Print(TEXT("LockActorSelection: ActorToLock is invalid."), FColor::Red);
+		return;
+	}
+	
+	ActorToLock->Tags.Add(FName("LockedSelection"));
+}
+
+void FSuperManagerModule::UnlockActorSelection(AActor* ActorToUnlock)
+{
+	if (!IsValid(ActorToUnlock))
+	{
+		DebugHelper::Print(TEXT("UnlockActorSelection: ActorToUnlock is invalid."), FColor::Red);
+		return;
+	}
+
+	if (ActorToUnlock->ActorHasTag(FName("LockedSelection")))
+	{
+		DebugHelper::Print(FString::Printf(TEXT("Unlocking Actor: %s"), *ActorToUnlock->GetActorLabel()), FColor::Green);
+	}
+	else
+	{
+		DebugHelper::Print(FString::Printf(TEXT("Actor: %s is not locked."), *ActorToUnlock->GetActorLabel()), FColor::Yellow);
+		return;
+	}
+	ActorToUnlock->Tags.Remove(FName("LockedSelection"));
+}
+
+bool FSuperManagerModule::IsActorSelectionLocked(AActor* ActorToCheck)
+{
+	if (!IsValid(ActorToCheck))
+	{
+		DebugHelper::Print(TEXT("IsActorSelectionLocked: ActorToCheck is invalid."), FColor::Red);
+		return false;
+	}
+
+	return ActorToCheck->ActorHasTag(FName("LockedSelection"));
+}
 
 #pragma endregion
 
 #pragma region ProcessDataForAdvanceDeletion
+
+bool FSuperManagerModule::GetEditorActorSubsystem()
+{
+	if (!EditorActorSubsystem.IsValid())
+	{
+		DebugHelper::Print(TEXT("GetEditorActorSubsystem: EditorActorSubsystem is invalid."), FColor::Red);
+		return false;
+	}
+	
+	EditorActorSubsystem = GEditor->GetEditorSubsystem<UEditorActorSubsystem>();
+	if (!EditorActorSubsystem.IsValid())
+	{
+		DebugHelper::Print(TEXT("GetEditorActorSubsystem: Failed to get EditorActorSubsystem."), FColor::Red);
+		return false;
+	}
+	return true;
+}
 
 bool FSuperManagerModule::DeleteSingleAssetForAssetList(const FAssetData& AssetDataToDelete)
 {
